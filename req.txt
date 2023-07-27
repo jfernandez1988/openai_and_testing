@@ -1,0 +1,144 @@
+###Introducción###
+Se realiza este desarrollo para adaptar el sistema Esco Fondos a las características del activo
+reajustable
+##Objetivo##
+El objetivo es poder operar bonos y valuar correctamente los bonos reajustables uruguayos,
+que liquidan en moneda diferente a la del fondo y a su vez ajustan por un coeficiente
+determinado en otra moneda.
+###Alcance###
+El desarrollo impacta en la creación de un nuevo tipo de papel, que una vez habilitado y
+asociado a la especie en cuestión permitirá:
+Seleccionar por default una valuación por reajuste (habilitando obligatoriamente la
+carga de un tipo de coeficiente, moneda de reajuste, moneda de cobro y convención
+mercado) y un nuevo campo denominado “unidad base” a ser completada por el
+usuario.
+Se cargaría únicamente la UI base. Para lograr este efecto se requiere que en
+EscoFondos al momento de la compra ya tengan el valor de la UI del dia.
+2- Calcular en la compra-venta de la especie el tipo de cambio de la moneda reajustable
+respecto a la moneda del fondo o en su defecto, permitir ingresarla por el usuario.
+El TC negociado respecto a dólar te trae el del ultimo días cerrado y habilita a modificar.
+El TC negociado respecto a coeficiente de reajuste se calcularía automáticamente
+dividiendo la UI del dia respecto a la UI parametrizada como base, pero también va a
+estar habilitada para modificar por el usuario
+3- Adaptación de la fórmula con la que arma el asiento para que el monto bruto, en lugar
+de ajustarse por el tipo de cambio de moneda de liquidación/moneda del fondo, se
+ajuste por el tipo de cambio de la moneda del tipo de coeficiente/moneda del fondo
+(para el principal). Por otra parte, el valor nominal se deberá ajustar por la tasa del
+servicio, los días transcurridos según convención y el coeficiente de reajuste (para el
+interés)
+4- Al final del día, se incorporarán dos nuevos procesos a la actualización de cartera.
+El primero calculará el resultado por tenencia y el segundo calculará la diferencia de
+cambio.
+###Definiciones###
+Se creará un nuevo tipo de papel denominado “Bono reajustable” que estará disponible para
+asociar a los nuevos tipos de especie que agregue el usuario. 
+Una vez que el usuario visualice este tipo de papel, podrá crear “n” tipos de especie vinculados
+al mismo. Ejemplo: Bonos globales uruguayos reajustables
+
+A partir de esta asociación, se crearán las nuevas características y operatoria de la nueva especie
+definida en la sección de alcance.
+1- Seleccionar por default una valuación por reajuste (habilitando obligatoriamente
+la carga de un tipo de coeficiente, moneda de reajuste, moneda de cobro y
+convención de mercado) y un nuevo campo denominado “unidad base” a ser
+completada por el usuario
+
+Existirá un nuevo tipo de valuación denominado “REAJUSTE” que obligará a cargar:
+*Tipo de coeficiente: (se ajustará por este coeficiente en la compra, y luego diariamente), tanto
+el principal como el cupón corrido
+*Moneda de ajuste: Es la moneda que se utilizará para para pasar el servicio en la fecha de
+corte a moneda de liquidacion.
+*Moneda de cobro: Es la moneda de concertación/liquidación de la operación.
+En caso que el tipo de coeficiente esté cargado, se habilitará para la carga una unidad base, la
+cual será ingresada manualmente por el usuario.
+
+2- Ingresar en la compra-venta de la especie el tipo de cambio de la moneda
+reajustable respecto a la moneda del fondo
+En la grilla denominada “compra venta de especies” se agregará un nuevo campo denominado
+“De Tipo de coeficiente parametrizado en especie a Moneda del fondo”
+Ejemplo: Tipo de coeficiente parametrizado: UI/UI
+ Moneda del fondo: Pesos Uruguayos/UY
+El campo nuevo en este caso se denominará De UI a UY
+
+Este campo se calculará automáticamente con el cálculo:
+Tipo de coeficiente del dia de la concertación de la compra o venta (cargado en cotizaciones
+de monedas) dividido la Unidad Base cargada en la especie.
+El usuario tendrá la opción de visualizar y modificar ese campo en caso antes de confirmar la
+compra.
+
+3- Adaptación de la fórmula con la que arma el asiento para que el monto bruto, en
+lugar de ajustarse por el tipo de cambio de moneda de liquidación/moneda del
+fondo, se ajuste por el tipo de cambio de la moneda del tipo de coeficiente/moneda
+del fondo (para el principal). Por otra parte, el valor nominal se deberá ajustar
+por la tasa del servicio, los días transcurridos según convención y el coeficiente de
+reajuste (para el interés)
+
+
+**A continuación se detallan las formulas:**
+VALUACION ESPECIE EN ASIENTO DE COMPRA = PRINCIPAL + CUPON
+Ejemplo: 367.758,48 + 2.344,54
+PRINCIPAL = Monto bruto * TC Reajuste (moneda tipo de coeficiente/moneda fondo)
+Ejemplo: 103.700 * 3,5463691238 = 367.758,48
+CUPON = Q * Tasa * Días * Tipo de cambio reajuste
+Ejemplo: 100.000 * 4,25% * (56/360) * 3,5463691238= 2.344,54
+Q: Cantidad cargada en la grilla de compra-venta de especies
+Tasa: Es la tasa del servicio cargada en el servicio que se está devengando.
+Días: Días desde último pago de cupón / Días base
+Para tomar los días base se toma la convención de mercado parametrizada en la especie.
+Tipo de Cambio Reajuste: TC de la moneda tipo de coeficiente respecto a la moneda fondo, es
+el nuevo campo agregado en la grilla de compra-venta de especies.
+
+4- Al final del día, se incorporará un nuevo proceso a la actualización de cartera de
+diferencia de cambio reajuste
+-Adaptar la valuación del día al cierre de este tipo de papel para que sea:
+Cantidad en cartera * precio sucio al cierre * tipo de coeficiente del dia
+(El primer dia se puede sacar del asiento de compra, el resto de los días deberá hacer este
+cálculo)
+Proceso de resultado por tenencia
+RxT = Valuación del día al cierre – valuación anterior (momento de compra)
+Los días subsiguientes, sigue esa misma lógica con lo cual el proceso de resultado por tenencia
+en sí no se modifica.
+Proceso de diferencia de cambio
+Dif cambio = VE en moneda de liquidación * (Variacion TC mda liq/mda fondo)
+Aclaracion: La variación TC refiere al TC de cierre – el TC de compra (el dia de compra).
+Luego, refiere a la variación del TC del dia respecto al dia anterior
+VE= Valor efectivo en moneda de liquidación: Valor compra, venta o servicio en moneda del
+fondo dividido el tipo de cambio de la negociación (de la compra, venta o servicio)
+
+El nuevo proceso de diferencia de cambio deberá tomar la valuación en moneda de liquidación
+para multiplicar por la variación del tipo de cambio, en lugar de tomar el valor en moneda del
+fondo como hace habitualmente.
+Este proceso ocurrirá cuando haya algún cobro o pago, es decir, de compra, servicio, o venta.
+El día en que haya compras, ventas o corte de servicio se calculará el valor efectivo actualizado
+dividiendo el valor de la compra, venta o servicio por el valor del TC de liquidación negociado.
+Al final del dia, el proceso de diferencia de cambio tomará el nuevo valor efectivo calculado y
+lo multiplicará por la diferencia entre el TC del cierre y el negociado ese dia.
+Proceso de corte de cupón
+A-En el corte de cupón se deberá incorporar el tipo de coeficiente en el cálculo:
+Actualmente el proceso realiza la fórmula de nominal * tasa
+Deberá realizar la fórmula de: nominal * tasa * tipo de coeficiente reajuste
+El tipo de coeficiente de reajuste es la cotización de ese coeficiente en el dia del corte del cupon
+dividido la unidad de base.
+B- En el corte de cupon se habilitará la posibilidad de cargar el tipo de cambio del servicio, de
+moneda de ajuste a moneda de cobro, en este caso de pesos uruguayos a dólares americanos.
+Esta funcionalidad ya existe hoy en dia para los bonos dólar link, se puede reutilizar.
+No lleva impacto en el proceso de cobro de cupon, dado que el cobro se realiza exactamente
+por el importe del corte.
+Proceso de vencimiento de especies
+Se realiza la misma adaptación que para el dia de la venta, solo que se toman los tipos de
+cambio del dia de vencimiento.
+Descripción General
+Impacto en:
+Compra venta de especies
+Vencimiento de especies
+Cobro de servicio
+Corte de servicio
+Actualización de cartera (proceso de RxT y Dif. Cambio)
+Nuevo tipo de papel
+Adaptación reporte de rentabilidad y resultado de flujo de especies valuadas a
+devangamiento.
+Pedido exclusivo de VALO Uruguay
+
+
+###Aclaraciones###
+Aquí sólo se explica el posible funcionamiento esperando por el cliente, por lo tanto, si existen
+dudas o comentarios por favor sumarlo. 
